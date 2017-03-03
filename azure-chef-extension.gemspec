@@ -18,9 +18,9 @@ Gem::Specification.new do |s|
   s.executables   = `git ls-files -- bin/*`.split("\n").map{ |f| File.basename(f) }
   s.require_paths = ["lib", "spec"]
 
-  s.add_development_dependency "chef", ">= 0.10.10", '< 12'
-  s.add_development_dependency 'rubyzip', '>= 1.0.0'
-  s.add_development_dependency 'nokogiri', '~> 1.6.1'
+  s.add_development_dependency 'chef', '~> 12.19', '>= 12.19.36'
+  s.add_development_dependency 'rubyzip', '~> 1.2', '>= 1.2.1'
+  s.add_development_dependency 'nokogiri', '~> 1.7', '>= 1.7.0.1'
 
   %w(rspec-core rspec-expectations rspec-mocks rspec_junit_formatter).each { |gem| s.add_development_dependency gem }
 end
