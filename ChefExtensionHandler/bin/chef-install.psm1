@@ -69,7 +69,7 @@ function Install-ChefClient {
           $daemon = "service"
         }
 
-        iex (new-object net.webclient).downloadstring('https://omnitruck.chef.io/install.ps1');install -daemon $daemon -version $chef_package_version
+        iex (new-object net.webclient).downloadstring('https://raw.githubusercontent.com/piyushawasthi/mixlib-omnitruck/master/install.ps1');install -daemon $daemon -version $chef_package_version
       }
       $completed = $true
     }
