@@ -88,7 +88,7 @@ function Install-ChefClient {
       }
     }
   }
-  $env:Path = "C:\\opscode\\chef\\bin;C:\\opscode\\chef\\embedded\\bin;" + $env:Path
+  $env:Path = $env:Path + ";C:\\opscode\\chef\\bin\\;C:\\opscode\\chef\\embedded\\bin\\;"
   $chefExtensionRoot = Chef-GetExtensionRoot
   Install-AzureChefExtensionGem $chefExtensionRoot
 }

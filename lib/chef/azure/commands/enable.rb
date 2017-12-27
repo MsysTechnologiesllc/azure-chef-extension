@@ -224,14 +224,22 @@ class EnableChef
         if windows?
           context = Chef::Knife::Core::WindowsBootstrapContext.new(config, runlist, Chef::Config, config[:secret])
           template_file += "\\bootstrap\\windows-chef-client-msi.erb"
-          bootstrap_bat_file ||= "#{ENV['TMP']}/bootstrap.bat"
+          bootstrap_bat_file ||= "#{ENV['TMP']}\\bootstrap.bat"
+
           template = IO.read(template_file).chomp
           bash_template = Erubis::Eruby.new(template).evaluate(context)
           File.open(bootstrap_bat_file, 'w') {|f| f.write(bash_template)}
-          bootstrap_command = "cmd.exe /C #{bootstrap_bat_file}"
+          # bootstrap_command = "cmd.exe /C #{bootstrap_bat_file}"
+          # bootstrap_command = "powershell.exe -ExecutionPolicy unrestricted -NoProfile -NonInteractive /C #{bootstrap_bat_file}"
+          bootstrap_command = "PowerShell.exe -NoProfile -Command \"& {Start-Process PowerShell.exe -ArgumentList '-NoProfile -Execut
+ionPolicy Bypass -Command #{bootstrap_bat_file}' -Verb RunAs}"
+
+          fsize = File.size(bootstrap_bat_file)
+          puts "Batfile size: #{fsize}"
 
           result = shell_out(bootstrap_command)
           result.error!
+
           puts "#{Time.now} Created chef configuration files"
           # remove the temp bootstrap file
           FileUtils.rm(bootstrap_bat_file)
