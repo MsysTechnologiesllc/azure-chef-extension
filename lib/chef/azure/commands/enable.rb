@@ -260,16 +260,21 @@ class EnableChef
       params = "-c #{bootstrap_directory}/client.rb -j #{bootstrap_directory}/first-boot.json -L #{@azure_plugin_log_location}/chef-client.log --once "
       params += " -E #{config[:environment]}" if config[:environment]
 
+      puts "Parameters are : #{params}"
+
       if @extended_logs == 'true'
         if windows?
           @chef_client_success_file = "c:\\chef_client_success"
         else
           @chef_client_success_file = "/tmp/chef_client_success"
         end
-        @child_pid = Process.spawn "chef-client #{params} && touch #{@chef_client_success_file}"
+        puts "In if Parameters are : #{params}"
+        @child_pid = Process.spawn("chef-client #{params} && touch #{@chef_client_success_file}")
         @chef_client_run_start_time = Time.now
       else
-        @child_pid = Process.spawn "chef-client #{params}"
+        puts "Else Parameters are : #{params}"
+        @child_pid = Process.spawn("chef-client #{params}")
+        puts @child_pid
       end
       Process.detach @child_pid
       puts "#{Time.now} Successfully launched chef-client process with PID [#{@child_pid}]"
