@@ -202,8 +202,10 @@ class EnableChef
         config = {}
         bootstrap_options = value_from_json_file(handler_settings_file,'runtimeSettings','0','handlerSettings', 'publicSettings', 'bootstrap_options')
         bootstrap_options = eval(bootstrap_options) ? eval(bootstrap_options) : {}
-
-        config[:environment] = bootstrap_options['environment']
+        puts "Bootstrap options : #{bootstrap_options}"
+        puts "Environment : #{bootstrap_options['environment']}"
+        config[:environment] = bootstrap_options['environment'] if bootstrap_options['environment']
+        puts "Environment is : #{config[:environment]}"
         config[:chef_node_name] = bootstrap_options['chef_node_name'] if bootstrap_options['chef_node_name']
         config[:chef_extension_root] = @chef_extension_root
         config[:user_client_rb] = @client_rb
@@ -218,7 +220,6 @@ class EnableChef
         config[:node_verify_api_cert] =  bootstrap_options['node_verify_api_cert'] if bootstrap_options['node_verify_api_cert']
         config[:node_ssl_verify_mode] =  bootstrap_options['node_ssl_verify_mode'] if bootstrap_options['node_ssl_verify_mode']
         runlist = @run_list.empty? ? [] : escape_runlist(@run_list)
-        puts "Run list is : #{runlist}"
         load_cloud_attributes_in_hints if ! @ohai_hints.empty?
         config[:first_boot_attributes] = @first_boot_attributes
 
@@ -231,7 +232,6 @@ class EnableChef
           File.open(bootstrap_bat_file, 'w') {|f| f.write(bash_template)}
           bootstrap_command = "cmd.exe /C #{bootstrap_bat_file}"
 
-          puts "Run list is : #{runlist}"
           result = shell_out(bootstrap_command)
           result.error!
           puts "#{Time.now} Created chef configuration files"
@@ -260,21 +260,16 @@ class EnableChef
       params = "-c #{bootstrap_directory}/client.rb -j #{bootstrap_directory}/first-boot.json -L #{@azure_plugin_log_location}/chef-client.log --once "
       params += " -E #{config[:environment]}" if config[:environment]
 
-      puts "Parameters are : #{params}"
-
       if @extended_logs == 'true'
         if windows?
           @chef_client_success_file = "c:\\chef_client_success"
         else
           @chef_client_success_file = "/tmp/chef_client_success"
         end
-        puts "In if Parameters are : #{params}"
         @child_pid = Process.spawn("chef-client #{params} && touch #{@chef_client_success_file}")
         @chef_client_run_start_time = Time.now
       else
-        puts "Else Parameters are : #{params}"
         @child_pid = Process.spawn("chef-client #{params}")
-        puts @child_pid
       end
       Process.detach @child_pid
       puts "#{Time.now} Successfully launched chef-client process with PID [#{@child_pid}]"
