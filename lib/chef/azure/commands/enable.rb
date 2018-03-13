@@ -439,7 +439,7 @@ class EnableChef
     end
   end
 
-  def get_env_value (bootstrap_env)
-    !(bootstrap_env.nil? && bootstrap_env.strip.empty?) ? bootstrap_env : "_default"
+  def get_env_value(bootstrap_env)
+    (bootstrap_env.nil? || bootstrap_env.strip.empty?) ? "_default" : bootstrap_env
   end
 end
