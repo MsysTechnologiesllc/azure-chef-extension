@@ -204,7 +204,7 @@ class EnableChef
         bootstrap_options = eval(bootstrap_options) ? eval(bootstrap_options) : {}
         puts "Bootstrap options : #{bootstrap_options}"
         puts "Environment : #{bootstrap_options['environment']}"
-        config[:environment] = bootstrap_options['environment'] if bootstrap_options['environment']
+        config[:environment] = get_env_value(bootstrap_options['environment'])
         puts "Environment is : #{config[:environment]}"
         config[:chef_node_name] = bootstrap_options['chef_node_name'] if bootstrap_options['chef_node_name']
         config[:chef_extension_root] = @chef_extension_root
@@ -437,5 +437,9 @@ class EnableChef
       Chef::Log.info "Copying setting file to #{bootstrap_directory}"
       FileUtils.cp(settings_file, bootstrap_directory)
     end
+  end
+
+  def get_env_value (bootstrap_env)
+    !(bootstrap_env.nil? && bootstrap_env.strip.empty?) ? bootstrap_env : "_default"
   end
 end
