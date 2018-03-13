@@ -204,7 +204,12 @@ class EnableChef
         bootstrap_options = eval(bootstrap_options) ? eval(bootstrap_options) : {}
         puts "Bootstrap options : #{bootstrap_options}"
         puts "Environment : #{bootstrap_options['environment']}"
-        config[:environment] = get_env_value(bootstrap_options['environment'])
+        #config[:environment] = get_env_value(bootstrap_options['environment'])
+        if (bootstrap_options['environment'].nil? || bootstrap_options['environment'].empty?)
+          config[:environment] = "_default"
+        else
+          config[:environment] = bootstrap_options['environment']
+        end
         puts "Environment is : #{config[:environment]}"
         config[:chef_node_name] = bootstrap_options['chef_node_name'] if bootstrap_options['chef_node_name']
         config[:chef_extension_root] = @chef_extension_root
@@ -258,6 +263,7 @@ class EnableChef
       # Now the run chef-client with runlist in background, as we done want enable command to wait, else long running chef-client with runlist will timeout azure.
       puts "#{Time.now} Launching chef-client to register node with the runlist"
       params = "-c #{bootstrap_directory}/client.rb -j #{bootstrap_directory}/first-boot.json -L #{@azure_plugin_log_location}/chef-client.log --once "
+      puts "Environment in params : #{config[:environment]}"
       params += " -E #{config[:environment]}" if config[:environment]
 
       if @extended_logs == 'true'
