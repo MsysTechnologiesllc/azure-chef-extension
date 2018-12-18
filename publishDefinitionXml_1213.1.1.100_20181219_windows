@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<ExtensionImage xmlns="http://schemas.microsoft.com/windowsazure"  xmlns:i="http://www.w3.org/2001/XMLSchema-instance">
+  <!-- WARNING: Ordering of fields matter in this file. -->
+  <ProviderNameSpace>Chef.Bootstrap.WindowsAzure</ProviderNameSpace>
+  <Type>ChefClient</Type>
+  <Version>1213.1.1.100</Version>
+  <Label>Chef Extension for windows</Label>
+  <HostingResources>VmRole</HostingResources>
+  <MediaLink>https://chefextensions.blob.core.windows.net/extension-packages/1545216587.zip</MediaLink>
+  <Description>Chef Extension that sets up chef-client on VM</Description>
+  <IsInternalExtension>true</IsInternalExtension>
+  <Eula>http://www.chef.io/about</Eula>
+  <PrivacyUri>http://www.chef.io/about</PrivacyUri>
+  <HomepageUri>http://www.chef.io/about</HomepageUri>
+  <IsJsonExtension>true</IsJsonExtension>
+  <CompanyName>Chef Software, Inc.</CompanyName>
+  <SupportedOS>windows</SupportedOS>
+  <!--%REGIONS%-->
+</ExtensionImage>

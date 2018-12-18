@@ -5,67 +5,73 @@
 
 # May be task to publish the release-version of zip to azure using azure apis (release automation)
 
-require 'rake/packagetask'
-require 'uri'
-require 'net/http'
-require 'json'
-require 'zip'
-require 'date'
-require 'nokogiri'
-require 'mixlib/shellout'
-require './lib/chef/azure/helpers/erb.rb'
+require "rake/packagetask"
+require "uri"
+require "net/http"
+require "json"
+require "zip"
+require "date"
+require "nokogiri"
+require "mixlib/shellout"
+require "./lib/chef/azure/helpers/erb.rb"
 
-PACKAGE_NAME = "ChefExtensionHandler"
-MANIFEST_NAME = "publishDefinitionXml"
-EXTENSION_VERSION = "1.0"
-CHEF_BUILD_DIR = "pkg"
-PESTER_VER_TAG = "2.0.4" # we lock down to specific tag version
-PESTER_GIT_URL = 'https://github.com/pester/Pester.git'
-PESTER_SANDBOX = './PESTER_SANDBOX'
+PACKAGE_NAME = "ChefExtensionHandler".freeze
+MANIFEST_NAME = "publishDefinitionXml".freeze
+EXTENSION_VERSION = "1.0".freeze
+CHEF_BUILD_DIR = "pkg".freeze
+PESTER_VER_TAG = "2.0.4".freeze # we lock down to specific tag version
+PESTER_GIT_URL = "https://github.com/pester/Pester.git".freeze
+PESTER_SANDBOX = "./PESTER_SANDBOX".freeze
+CHEF_URL = "http://www.chef.io/about".freeze
 
-GOV_REGIONS = ["USGov Iowa", "USGov Arizona", "USGov Texas", "USGov Virginia"]
+GOV_REGIONS = ["USGov Iowa", "USGov Arizona", "USGov Texas", "USGov Virginia"].freeze
 
-# Array of hashes {src : dest} for files to be packaged
-LINUX_PACKAGE_LIST = [
-  {"ChefExtensionHandler/*.sh" => "#{CHEF_BUILD_DIR}/"},
-  {"ChefExtensionHandler/bin/*.sh" => "#{CHEF_BUILD_DIR}/bin"},
-  {"ChefExtensionHandler/bin/*.py" => "#{CHEF_BUILD_DIR}/bin"},
-  {"ChefExtensionHandler/bin/*.rb" => "#{CHEF_BUILD_DIR}/bin"},
-  {"ChefExtensionHandler/bin/chef-client" => "#{CHEF_BUILD_DIR}/bin"},
-  {"*.gem" => "#{CHEF_BUILD_DIR}/gems"},
-  {"ChefExtensionHandler/HandlerManifest.json.nix" => "#{CHEF_BUILD_DIR}/HandlerManifest.json"}
-]
+PREVIEW = "deploy_to_preview".freeze
+PRODUCTION = "deploy_to_production".freeze
+GOV = "deploy_to_gov".freeze
+DELETE_FROM_PREVIEW = "delete_from_preview".freeze
+DELETE_FROM_PRODUCTION = "delete_from_production".freeze
+DELETE_FROM_GOV = "delete_from_gov".freeze
+CONFIRM_INTERNAL = "confirm_internal_deployment".freeze
+CONFIRM_PUBLIC = "confirm_public_deployment".freeze
+DEPLOY_INTERNAL = "deploy_to_internal".freeze
+DEPLOY_PUBLIC = "deploy_to_public".freeze
 
-WINDOWS_PACKAGE_LIST = [
-  {"ChefExtensionHandler/*.cmd" => "#{CHEF_BUILD_DIR}/"},
-  {"ChefExtensionHandler/bin/*.bat" => "#{CHEF_BUILD_DIR}/bin"},
-  {"ChefExtensionHandler/bin/*.ps1" => "#{CHEF_BUILD_DIR}/bin"},
-  {"ChefExtensionHandler/bin/*.psm1" => "#{CHEF_BUILD_DIR}/bin"},
-  {"ChefExtensionHandler/bin/*.rb" => "#{CHEF_BUILD_DIR}/bin"},
-  {"ChefExtensionHandler/bin/chef-client" => "#{CHEF_BUILD_DIR}/bin"},
-  {"*.gem" => "#{CHEF_BUILD_DIR}/gems"},
-  {"ChefExtensionHandler/HandlerManifest.json" => "#{CHEF_BUILD_DIR}/HandlerManifest.json"}
-]
+INTERNAL_OR_PUBLIC = [CONFIRM_INTERNAL, CONFIRM_PUBLIC].freeze
+DEPLOY_TYPE = [PREVIEW, PRODUCTION, GOV].freeze
+DELETE_TYPE = [DELETE_FROM_PREVIEW, DELETE_FROM_PRODUCTION, DELETE_FROM_GOV].freeze
 
-PREVIEW = "deploy_to_preview"
-PRODUCTION = "deploy_to_production"
-GOV = "deploy_to_gov"
-DELETE_FROM_PREVIEW = "delete_from_preview"
-DELETE_FROM_PRODUCTION = "delete_from_production"
-DELETE_FROM_GOV = "delete_from_gov"
-CONFIRM_PUBLIC = "confirm_public_deployment"
-CONFIRM_INTERNAL = "confirm_internal_deployment"
-DEPLOY_INTERNAL = "deploy_to_internal"
-DEPLOY_PUBLIC = "deploy_to_public"
+# Hashes {src : dest} for files to be packaged
+LINUX_PACKAGE_LIST = {
+  "ChefExtensionHandler/*.sh" => "#{CHEF_BUILD_DIR}/",
+  "ChefExtensionHandler/bin/*.sh" => "#{CHEF_BUILD_DIR}/bin",
+  "ChefExtensionHandler/bin/*.py" => "#{CHEF_BUILD_DIR}/bin",
+  "ChefExtensionHandler/bin/*.rb" => "#{CHEF_BUILD_DIR}/bin",
+  "ChefExtensionHandler/bin/chef-client" => "#{CHEF_BUILD_DIR}/bin",
+  "*.gem" => "#{CHEF_BUILD_DIR}/gems",
+  "ChefExtensionHandler/HandlerManifest.json.nix" => "#{CHEF_BUILD_DIR}/HandlerManifest.json}",
+}.freeze
 
-# Helpers
-def windows?
-  if RUBY_PLATFORM =~ /mswin|mingw|windows/
-    true
-  else
-    false
-  end
-end
+WINDOWS_PACKAGE_LIST = {
+  "ChefExtensionHandler/*.cmd" => "#{CHEF_BUILD_DIR}/",
+  "ChefExtensionHandler/bin/*.bat" => "#{CHEF_BUILD_DIR}/bin",
+  "ChefExtensionHandler/bin/*.ps1" => "#{CHEF_BUILD_DIR}/bin",
+  "ChefExtensionHandler/bin/*.psm1" => "#{CHEF_BUILD_DIR}/bin",
+  "ChefExtensionHandler/bin/*.rb" => "#{CHEF_BUILD_DIR}/bin",
+  "ChefExtensionHandler/bin/chef-client" => "#{CHEF_BUILD_DIR}/bin",
+  "*.gem" => "#{CHEF_BUILD_DIR}/gems",
+  "ChefExtensionHandler/HandlerManifest.json" => "#{CHEF_BUILD_DIR}/HandlerManifest.json",
+}.freeze
+
+ENVIRONMENT_VARIABLES = {
+  "azure_extension_cli" => "Path of azure-extension-cli binary. Download it from https://github.com/Azure/azure-extensions-cli/releases",
+  "SUBSCRIPTION_ID" => "Subscription ID of the GOV Account from where extension is to be published.",
+  "SUBSCRIPTION_CERT" => "Path to the Management Certificate",
+  "MANAGEMENT_URL" => "Management URL for Public/Gov Cloud (e.g. https://management.core.windows.net/)",
+  "EXTENSION_NAMESPACE" => "Publisher namespace (Chef.Bootstrap.WindowsAzure)",
+}.freeze
+
+PUBLISH_ENV_VARS = { "publishsettings" => "Publish settings file for Azure." }.freeze
 
 def error_and_exit!(message)
   puts "\nERROR: #{message}\n"
@@ -73,107 +79,138 @@ def error_and_exit!(message)
 end
 
 def confirm!(type)
-  print "Do you wish to proceed? (y/n)"
-  proceed = STDIN.gets.chomp() == 'y'
+  puts "Do you wish to proceed?(y/n)"
+  proceed = STDIN.gets.chomp() == "y"
   if not proceed
     puts "Exiting #{type} request."
     exit
   end
 end
 
-def assert_publish_env_vars
-  [{"publishsettings" => "Publish settings file for Azure."}].each do |var|
-    if ENV[var.keys.first].nil?
-      error_and_exit! "Please set the environment variable - \"#{var.keys.first}\" for [#{var.values.first}]"
+###############################################################################
+# Following options were extracted from azure-extensions-cli version v1.2.7.
+# We will use them for our rake tasks.
+# azure-extensions-cli: Designed for Microsoft internal extension publishers to
+# release, update and manage Virtual Machine extensions.
+###############################################################################
+
+# Creates an XML file used to publish or update extension.
+def new_extension_manifest_opts(env_package, storage_base_url, storage_account, extension_namespace, extension_name, extension_version, label, supported_os)
+  <<~OPTIONS
+    --management-url #{ENV['MANAGEMENT_URL']} `        # Azure Management URL for a non-public Azure cloud [$MANAGEMENT_URL] `\
+    --subscription-id #{ENV['SUBSCRIPTION_ID']} `      # Subscription ID for the publisher subscription [$SUBSCRIPTION_ID] `\
+    --subscription-cert #{ENV['SUBSCRIPTION_CERT']} `  # Path of subscription management certificate (.pem) file [$SUBSCRIPTION_CERT] `\
+    --package #{env_package} `                         # Path of extension package (.zip) `\
+    --storage-base-url #{storage_base_url} `           # Azure Storage base URL [$STORAGE_BASE_URL] `\
+    --storage-account #{storage_account} `             # Name of an existing storage account to be used in uploading the extension package temporarily `\
+    --namespace #{extension_namespace} `                            # Publisher namespace e.g. Microsoft.Azure.Extensions [$EXTENSION_NAMESPACE] `\
+    --name #{extension_name} `                                      # Name of the extension e.g. FooExtension [$EXTENSION_NAME] `\
+    --version #{extension_version} `                                # Version of the extension package e.g. 1.0.0 `\
+    --label  'Chef Extension for #{label}' `                        # Human readable name of the extension `\
+    --description 'Chef Extension that sets up chef-client on VM' ` # Description of the extension `\
+    --eula-url #{CHEF_URL} `                           # URL to the End-User License Agreement page `\
+    --privacy-url #{CHEF_URL} `                        # URL to the Privacy Policy page `\
+    --homepage-url #{CHEF_URL} `                       # URL to the homepage of the extension `\
+    --company 'Chef Software, Inc.' `                  # Human-readable Company Name of the publisher `\
+    --supported-os #{supported_os} `                   # Extension platform e.g. 'Linux' `
+  OPTIONS
+end
+
+# Publishes a new type of extension internally.
+def new_extension_version_opts(manifest_path)
+  <<-OPTIONS
+    --management-url #{ENV['MANAGEMENT_URL']} `         # Azure Management URL for a non-public Azure cloud [$MANAGEMENT_URL] `\
+    --subscription-id  #{ENV['SUBSCRIPTION_ID']} `      # Subscription ID for the publisher subscription [$SUBSCRIPTION_ID] `\
+    --subscription-cert  #{ENV['SUBSCRIPTION_CERT']} `  # Path of subscription management certificate (.pem) file [$SUBSCRIPTION_CERT] `\
+    --manifest #{manifest_path} `                       # Path of extension manifest file (XML output of 'new-extension-manifest') `
+  OPTIONS
+end
+
+# Promote published internal extension to PROD in one or more locations.
+def promote_opts(manifest_path, regions)
+  <<-OPTIONS
+    --management-url #{ENV['MANAGEMENT_URL']} `         # Azure Management URL for a non-public Azure cloud [$MANAGEMENT_URL]`\
+    --subscription-id  #{ENV['SUBSCRIPTION_ID']} `      # Subscription ID for the publisher subscription [$SUBSCRIPTION_ID]`\
+    --subscription-cert  #{ENV['SUBSCRIPTION_CERT']} `  # Path of subscription management certificate (.pem) file [$SUBSCRIPTION_CERT]`\
+    --manifest #{manifest_path} `                       # Path of extension manifest file (XML output of 'new-extension-manifest')`\
+    --region  #{regions.map { |reg| "--region \"#{reg}\" " }.join} ` # List of one or more regions to rollout an extension (e.g. 'Japan East')`
+  OPTIONS
+end
+
+# Promote published extension to all Locations.
+# This might be similar to new_extension_version_opts and possibly DRYied up.
+# Intentionally keeping it as is right now for a better documentation.
+def promote_all_regions_opts(manifest_path)
+  <<-OPTIONS
+    --management-url #{ENV['MANAGEMENT_URL']} `         # Azure Management URL for a non-public Azure cloud [$MANAGEMENT_URL] `\
+    --subscription-id  #{ENV['SUBSCRIPTION_ID']} `      # Subscription ID for the publisher subscription [$SUBSCRIPTION_ID] `\
+    --subscription-cert  #{ENV['SUBSCRIPTION_CERT']} `  # Path of subscription management certificate (.pem) file [$SUBSCRIPTION_CERT] `\
+    --manifest #{manifest_path} `                       # Path of extension manifest file (XML output of 'new-extension-manifest')`
+  OPTIONS
+end
+
+# Marks the specified version of the extension internal. Does not delete.
+def unpublish_version_opts(extension_namespace, extension_name, extension_version)
+  <<-OPTIONS
+    --management-url #{ENV['MANAGEMENT_URL']} `         # Azure Management URL for a non-public Azure cloud [$MANAGEMENT_URL] `\
+    --subscription-id  #{ENV['SUBSCRIPTION_ID']} `      # Subscription ID for the publisher subscription [$SUBSCRIPTION_ID] `\
+    --subscription-cert  #{ENV['SUBSCRIPTION_CERT']} `  # Path of subscription management certificate (.pem) file [$SUBSCRIPTION_CERT] `\
+    --namespace #{extension_namespace} `                # Publisher namespace e.g. Microsoft.Azure.Extensions [$EXTENSION_NAMESPACE] `\
+    --name #{extension_name} `                          # Name of the extension e.g. FooExtension [$EXTENSION_NAME] `\
+    --version #{extension_version} `                    # Version of the extension package e.g. 1.0.0 `
+  OPTIONS
+end
+
+# Deletes the extension version. It should be unpublished first.
+# This might be similar to unpublish_version_opts and possibly DRYied up.
+# Intentionally keeping it as is right now for a better documentation.
+def delete_version_opts(extension_namespace, extension_name, extension_version)
+  <<-OPTIONS
+    --management-url #{ENV['MANAGEMENT_URL']} `         # Azure Management URL for a non-public Azure cloud [$MANAGEMENT_URL] `\
+    --subscription-id  #{ENV['SUBSCRIPTION_ID']} `      # Subscription ID for the publisher subscription [$SUBSCRIPTION_ID] `\
+    --subscription-cert  #{ENV['SUBSCRIPTION_CERT']} `  # Path of subscription management certificate (.pem) file [$SUBSCRIPTION_CERT] `\
+    --namespace #{extension_namespace} `                # Publisher namespace e.g. Microsoft.Azure.Extensions [$EXTENSION_NAMESPACE] `\
+    --name #{extension_name} `                          # Name of the extension e.g. FooExtension [$EXTENSION_NAME] `\
+    --version #{extension_version} `                    # Version of the extension package e.g. 1.0.0 `
+  OPTIONS
+end
+
+###############################################################################
+# Methods developed by using meta-programming to invoke azure-extensions-cli
+# commands with their respective options.
+# Example of a generated command:
+# run_promote_all_regions("PATH TO XML") =>
+# azure-extensions-cli_windows_amd64.exe promote-all-regions
+#    --management-url URL
+#    --subscription-id SUB_ID
+#    --subscription-cert SUB_CERT
+#    --manifest PATH TO XML
+###############################################################################
+
+%w{new_extension_manifest new_extension_version promote promote_all_regions
+ unpublish_version delete_version}.each do |method|
+  define_method "run_#{method}" do |*args|
+    cli_command = method.tr("_", "-")
+    begin
+      options = send(:"#{method}_opts", *args)
+      shell_command = "#{ENV['azure_extension_cli']} #{cli_command} #{options}"
+      puts "Executing: #{shell_command}"
+      cli_cmd = Mixlib::ShellOut.new(shell_command)
+      result = cli_cmd.run_command
+      result.error!
+      puts "#{cli_command} has been executed successfully !"
+      return result
+    rescue Mixlib::ShellOut::ShellCommandFailed => e
+      error_and_exit!("Failure while running `#{ENV['azure_extension_cli']} #{cli_command}`: #{e}")
     end
   end
 end
 
-def assert_environment_vars
-  env_vars = {
-    "azure_extension_cli" => "Path of azure-extension-cli binary. Download it from https://github.com/Azure/azure-extensions-cli/releases",
-    "SUBSCRIPTION_ID" => "Subscription ID of the GOV Account from where extension is to be published.",
-    "SUBSCRIPTION_CERT" => "Path to the Management Certificate",
-    "MANAGEMENT_URL" => "Management URL for Public/Gov Cloud (e.g. https://management.core.windows.net/)",
-    "EXTENSION_NAMESPACE" => "Publisher namespace (Chef.Bootstrap.WindowsAzure)"
-  }
+###############################################################################
+# Helper methods to verify provided inputs and building cli related commands
+###############################################################################
 
-  env_vars.each do |var, desc|
-    error_and_exit! "Please set the environment variable - \"#{var}\" for [#{desc}]" unless ENV[var]
-  end
-end
-
-# sets the common environment varaibles for Chef Extension
-def set_env_vars(deploy_type, subscription_id)
-  env_vars = {
-    "SUBSCRIPTION_ID" => subscription_id,
-    "MANAGEMENT_URL" => get_mgmt_uri(deploy_type),
-    "EXTENSION_NAMESPACE" => "Chef.Bootstrap.WindowsAzure"
-  }
-
-  env_vars.each do |var, value|
-    ENV[var] = value
-  end
-end
-
-def assert_gov_regions(args)
-  (error_and_exit! "Invalid Region. Valid regions for GOV Cloud are: #{GOV_REGIONS}" unless GOV_REGIONS.include? args.region) if args.region
-  (error_and_exit! "Invalid Region. Valid regions for GOV Cloud are: #{GOV_REGIONS}" unless GOV_REGIONS.include? args.region1) if args.region1
-  (error_and_exit! "Invalid Region. Valid regions for GOV Cloud are: #{GOV_REGIONS}" unless GOV_REGIONS.include? args.region2) if args.region2
-end
-
-def assert_deploy_params(deploy_type, internal_or_public)
-  assert_publish_env_vars
-
-  error_and_exit! "deploy_type parameter value should be \"#{PREVIEW}\" or \"#{PRODUCTION}\" or \"#{GOV}\"" unless (deploy_type == PREVIEW or deploy_type == PRODUCTION or deploy_type == GOV)
-
-  error_and_exit! "internal_or_public parameter value should be \"#{CONFIRM_INTERNAL}\" or \"#{CONFIRM_PUBLIC}\"" unless (internal_or_public == CONFIRM_INTERNAL or internal_or_public == CONFIRM_PUBLIC)
-end
-
-def assert_publish_params(deploy_type, internal_or_public, operation)
-  assert_deploy_params(deploy_type, internal_or_public)
-
-  error_and_exit! "operation parameter should be \"new\" or \"update\"" unless (operation == "new" or operation == "update")
-end
-
-def assert_delete_params(type, chef_deploy_namespace, full_extension_version)
-  assert_publish_env_vars
-
-  error_and_exit! "deploy_type parameter value should be \"#{DELETE_FROM_PREVIEW}\" or \"#{DELETE_FROM_PRODUCTION}\" or \"#{DELETE_FROM_GOV}\"" unless (type == DELETE_FROM_PREVIEW or type == DELETE_FROM_PRODUCTION or type == DELETE_FROM_GOV)
-
-  error_and_exit! "chef_deploy_namespace must be specified." if chef_deploy_namespace.nil?
-
-  error_and_exit! "full_extension_version must be specified." if full_extension_version.nil?
-end
-
-def assert_update_params(definition_xml)
-  assert_publish_env_vars
-  error_and_exit! "definition_xml param must point to definitionXml file." if definition_xml.nil?
-end
-
-def assert_git_state
-  is_crlf = %x{git config --global core.autocrlf}
-  error_and_exit! "Please set the git crlf setting and clone, so git does not auto convert newlines to crlf. [ex: git config --global core.autocrlf false]" if is_crlf.chomp != "false"
-end
-
-def load_publish_settings
-  doc = Nokogiri::XML(File.open(ENV["publishsettings"]))
-  subscription_id =  doc.at_css("Subscription").attribute("Id").value
-  subscription_name =  doc.at_css("Subscription").attribute("Name").value
-  [subscription_id, subscription_name]
-end
-
-def load_publish_properties(target_type)
-  publish_options = JSON.parse(File.read("Publish.json"))
-
-  definitionParams = publish_options[target_type]["definitionParams"]
-  storageAccount = definitionParams["storageAccount"]
-  storageContainer = definitionParams["storageContainer"]
-  extensionName = definitionParams["extensionName"]
-  [storageAccount, storageContainer, extensionName]
-end
-
-def get_mgmt_uri(deploy_type)
+def mgmt_uri(deploy_type)
   case deploy_type
   when /(^#{PRODUCTION}$|^#{DELETE_FROM_PRODUCTION}$)/
     "https://management.core.windows.net/"
@@ -184,18 +221,101 @@ def get_mgmt_uri(deploy_type)
   end
 end
 
-def get_publish_uri(deploy_type, subscriptionid, operation)
-  uri = get_mgmt_uri(deploy_type) + "#{subscriptionid}/services/extensions"
-  uri = uri + "?action=update" if operation == "update"
-  uri
+def zip_folder_name(version, platform, date_tag = Date.today.strftime("%Y%m%d"))
+  "#{PACKAGE_NAME}_#{version}_#{date_tag}_#{platform}.zip"
 end
 
-def get_extension_pkg_name(args, date_tag = nil)
-  if date_tag.nil?
-    "#{PACKAGE_NAME}_#{args.extension_version}_#{Date.today.strftime("%Y%m%d")}_#{args.target_type}.zip"
-  else
-    "#{PACKAGE_NAME}_#{args.extension_version}_#{date_tag}_#{args.target_type}.zip"
+def xml_file_name(version, platform, date_tag = Date.today.strftime("%Y%m%d"))
+  "#{MANIFEST_NAME}_#{version}_#{date_tag}_#{platform}"
+end
+
+def assert_git_state
+  is_crlf = `git config --global core.autocrlf`
+  unless is_crlf.chomp == "false"
+    error_and_exit! "Please set the git crlf setting and clone, so git does not \
+    auto convert newlines to crlf. \
+    [EX: git config --global core.autocrlf false]"
   end
+end
+
+def assert_env_vars
+  ENVIRONMENT_VARIABLES.each do |key, value|
+    error_and_exit! "Please set the environment variable - \"#{key}\" for [#{value}]" unless ENV[key]
+  end
+end
+
+# sets the common environment varaibles for Chef Extension
+def set_env_vars(subscription_id, deploy_type)
+  env_vars = {
+    "SUBSCRIPTION_ID" => subscription_id,
+    "MANAGEMENT_URL" => mgmt_uri(deploy_type),
+    "EXTENSION_NAMESPACE" => "Chef.Bootstrap.WindowsAzure",
+  }
+
+  env_vars.each do |var, value|
+    ENV[var] = value
+  end
+end
+
+def assert_publish_env_vars
+  PUBLISH_ENV_VARS.each do |key, value|
+    error_and_exit! "Please set the environment variable - \"#{key}\" for [#{value}]" unless ENV[key]
+  end
+end
+
+def assert_deploy_type_params(deploy_type)
+  unless DEPLOY_TYPE.include?(deploy_type)
+    error_and_exit! "Invalid parameter 'deploy_type'. \
+    Valid values are: \"#{DEPLOY_TYPE.join('", "')}\""
+  end
+end
+
+def assert_delete_type_params(delete_type)
+  error_and_exit! "This task is supported on for deploy_types: \"#{DELETE_FROM_GOV}\" and \"#{DELETE_FROM_PRODUCTION}\"" unless DELETE_TYPE.include?(delete_type)
+end
+
+def assert_operation_params(operation)
+  error_and_exit! 'operation parameter should be either "new" or "update"' unless %w{new update}.include?(operation)
+end
+
+def assert_internal_or_public_params(internal_or_public)
+  unless INTERNAL_OR_PUBLIC.include?(internal_or_public)
+    error_and_exit! "Invalid parameter 'internal_or_public'. \
+    Valid values are: \"#{INTERNAL_OR_PUBLIC.join('", "')}\""
+  end
+end
+
+def assert_gov_regions(regions)
+  unless (invalid_regions = (regions - GOV_REGIONS)).empty?
+    error_and_exit! "Invalid Region: #{invalid_regions.join(', ')}. \
+    Valid regions for GOV Cloud are: \"#{GOV_REGIONS.join('", "')}\""
+  end
+end
+
+def assert_chef_deploy_namespace_params(chef_deploy_namespace)
+  error_and_exit! "'chef_deploy_namespace' must be specified." unless chef_deploy_namespace
+end
+
+def assert_extension_version(version)
+  error_and_exit! "'extension_version' must be specified." unless version
+end
+
+def assert_build_date(build_date_yyyymmdd)
+  error_and_exit! "Please specify the :build_date_yyyymmdd param used to identify the published build" unless build_date_yyyymmdd
+end
+
+def setup_sandbox
+  FileUtils.mkdir_p CHEF_BUILD_DIR
+  FileUtils.mkdir_p "#{CHEF_BUILD_DIR}/bin"
+  FileUtils.mkdir_p "#{CHEF_BUILD_DIR}/gems"
+end
+
+def load_publish_settings
+  assert_publish_env_vars
+  doc = Nokogiri::XML(File.open(ENV["publishsettings"]))
+  subscription_id = doc.at_css("Subscription").attribute("Id").value
+  subscription_name = doc.at_css("Subscription").attribute("Name").value
+  [subscription_id, subscription_name]
 end
 
 # Updates IsInternal as False for public release and True for internal release
@@ -206,77 +326,84 @@ def update_definition_xml(xml, args)
   File.write(xml, doc.to_xml)
 end
 
-def get_definition_xml_name(args)
-  "#{MANIFEST_NAME}_#{args.target_type}_#{args.build_date_yyyymmdd}"
+def publish_uri(deploy_type, subscription_id, operation)
+  uri = mgmt_uri(deploy_type) + "#{subscription_id}/services/extensions"
+  uri += "?action=update" if operation == "update"
+  uri
 end
 
-def get_definition_xml(args, date_tag = nil)
-  storageAccount, storageContainer, extensionName = load_publish_properties(args.target_type)
+def load_publish_properties(platform)
+  publish_options = JSON.parse(File.read("Publish.json"))
 
-  extensionZipPackage = get_extension_pkg_name(args, date_tag)
-
-  chef_url = 'http://www.chef.io/about'
-  supported_os = args.target_type == 'windows' ? 'windows' : 'linux'
-  storage_base_url = args.deploy_type == GOV ? 'core.usgovcloudapi.net' : 'core.windows.net'
-
-  begin
-    cli_cmd = Mixlib::ShellOut.new("#{ENV['azure_extension_cli']} new-extension-manifest --package #{extensionZipPackage} --storage-account #{storageAccount} --namespace #{args.chef_deploy_namespace} --name #{extensionName} --version #{args.extension_version} --label 'Chef Extension for #{args.target_type}' --description 'Chef Extension that sets up chef-client on VM' --eula-url #{chef_url} --privacy-url #{chef_url} --homepage-url #{chef_url} --company 'Chef Software, Inc.' --supported-os #{supported_os} --storage-base-url #{storage_base_url}")
-    result = cli_cmd.run_command
-    result.error!
-    definitionXml = result.stdout
-  rescue Mixlib::ShellOut::ShellCommandFailed => e
-    puts "Failure while running `#{ENV['azure_extension_cli']} new-extension-manifest`: #{e}"
-    exit
-  end
-
-  definitionXml
+  definition_params = publish_options[platform]["definitionParams"]
+  storage_account = definition_params["storageAccount"]
+  storage_container = definition_params["storageContainer"]
+  extension_name = definition_params["extensionName"]
+  [storage_account, storage_container, extension_name]
 end
 
-def is_internal?(args)
-  is_internal = if args.internal_or_public == CONFIRM_INTERNAL
-    true
-  elsif args.internal_or_public == CONFIRM_PUBLIC
-    false
-  end
+def definition_xml(deploy_type, version, platform, chef_deploy_namespace)
+  extension_zip_package = zip_folder_name(version, platform)
+  storage_account, _storage_container, extension_name = load_publish_properties(platform)
+  supported_os = platform == "windows" ? "windows" : "linux"
+
+  storage_base_url = deploy_type == GOV ? "core.usgovcloudapi.net" : "core.windows.net"
+
+  new_extension_manifest_args = [extension_zip_package, storage_base_url, storage_account,
+    chef_deploy_namespace, extension_name, version, platform, supported_os]
+
+  result = run_new_extension_manifest(*new_extension_manifest_args)
+  definition_xml = result.stdout
+  definition_xml
+end
+
+###############################################################################
+# Rake tasks providing an efficient way of executing azure-extensions-cli
+###############################################################################
+
+desc "Cleans up the package sandbox"
+task :clean do
+  puts "Cleaning Chef Package..."
+  FileUtils.rm_f(Dir.glob("*.zip"))
+  puts "Deleting #{CHEF_BUILD_DIR} and #{PESTER_SANDBOX}"
+  FileUtils.rm_rf(Dir.glob(CHEF_BUILD_DIR.to_s))
+  FileUtils.rm_rf(Dir.glob(PESTER_SANDBOX.to_s))
+  puts "Deleting gem file..."
+  FileUtils.rm_f(Dir.glob("*.gem"))
+  FileUtils.rm_f(Dir.glob("publishDefinitionXml_*"))
 end
 
 desc "Builds a azure chef extension gem."
-task :gem => [:clean] do
+task gem: [:clean] do
   puts "Building gem file..."
-  puts %x{gem build *.gemspec}
+  puts `gem build *.gemspec`
 end
 
 desc "Builds the azure chef extension package Ex: build[platform, extension_version], default is build[windows]."
-task :build, [:target_type, :extension_version, :confirmation_required] => [:gem] do |t, args|
-  args.with_defaults(:target_type => "windows",
-    :extension_version => EXTENSION_VERSION,
-    :confirmation_required => "true")
-  puts "Build called with args(#{args.target_type}, #{args.extension_version})"
+task :build, %i{target_type extension_version confirmation_required} => [:gem] do |_t, args|
+  args.with_defaults(
+    target_type: "windows",
+    extension_version: EXTENSION_VERSION,
+    confirmation_required: "true"
+    )
+
+  puts "Build called with args:
+  target_type: #{args.target_type}
+  extension_version: #{args.extension_version}
+  confirmation_required: #{args.confirmation_required}"
 
   assert_git_state
 
   # Get user confirmation if we are downloading correct version.
-  if args.confirmation_required == "true"
-    confirm!("build")
-  end
+  confirm!("build") if args.confirmation_required == "true"
 
   puts "Building #{args.target_type} package..."
-  # setup the sandbox
-  FileUtils.mkdir_p CHEF_BUILD_DIR
-  FileUtils.mkdir_p "#{CHEF_BUILD_DIR}/bin"
-  FileUtils.mkdir_p "#{CHEF_BUILD_DIR}/gems"
+  setup_sandbox
 
   # Copy platform specific files to package dir
   puts "Copying #{args.target_type} scripts to package directory..."
-  package_list = if args.target_type == "windows"
-    WINDOWS_PACKAGE_LIST
-  else
-    LINUX_PACKAGE_LIST
-  end
-
-  package_list.each do |rule|
-    src = rule.keys.first
-    dest = rule[src]
+  package_list = args.target_type == "windows" ? WINDOWS_PACKAGE_LIST : LINUX_PACKAGE_LIST
+  package_list.each do |src, dest|
     puts "Copy: src [#{src}] => dest [#{dest}]"
     if File.directory?(dest)
       FileUtils.cp_r Dir.glob(src), dest
@@ -291,390 +418,310 @@ task :build, [:target_type, :extension_version, :confirmation_required] => [:gem
   # to check if package was synced in PIR.
   FileUtils.touch "#{CHEF_BUILD_DIR}/version_#{args.extension_version}_#{date_tag}_#{args.target_type}"
 
-  puts "\nCreating a zip package..."
-  puts "#{PACKAGE_NAME}_#{args.extension_version}_#{date_tag}_#{args.target_type}.zip\n\n"
-
-  Zip::File.open("#{PACKAGE_NAME}_#{args.extension_version}_#{date_tag}_#{args.target_type}.zip", Zip::File::CREATE) do |zipfile|
-    Dir[File.join("#{CHEF_BUILD_DIR}/", '**', '**')].each do |file|
-      zipfile.add(file.sub("#{CHEF_BUILD_DIR}/", ''), file)
+  puts "\nCreating a zip package... \
+  #{zip_folder_name(args.extension_version, args.target_type, date_tag)}" + "\n\n"
+  Zip::File.open(zip_folder_name(args.extension_version, args.target_type, date_tag), Zip::File::CREATE) do |zipfile|
+    Dir[File.join("#{CHEF_BUILD_DIR}/", "**", "**")].each do |file|
+      zipfile.add(file.sub("#{CHEF_BUILD_DIR}/", ""), file)
     end
   end
 end
 
-
-desc "Cleans up the package sandbox"
-task :clean do
-  puts "Cleaning Chef Package..."
-  FileUtils.rm_f(Dir.glob("*.zip"))
-  puts "Deleting #{CHEF_BUILD_DIR} and #{PESTER_SANDBOX}"
-  FileUtils.rm_rf(Dir.glob("#{CHEF_BUILD_DIR}"))
-  FileUtils.rm_rf(Dir.glob("#{PESTER_SANDBOX}"))
-  puts "Deleting gem file..."
-  FileUtils.rm_f(Dir.glob("*.gem"))
-  FileUtils.rm_f(Dir.glob("publishDefinitionXml_*"))
-end
-
-desc "Publishes the azure chef extension package using publish.json Ex: publish[deploy_type, platform, extension_version], default is build[preview,windows]."
-task :publish, [:deploy_type, :target_type, :extension_version, :chef_deploy_namespace, :operation, :internal_or_public, :confirmation_required] => [:build] do |t, args|
-
+desc "Publishes the azure chef extension package using publish.json Ex: publish[deploy_type, platform, extension_version], default is build[preview, windows]."
+task :publish, %i{deploy_type target_type extension_version chef_deploy_namespace operation internal_or_public confirmation_required} do |_t, args|
   args.with_defaults(
-    :deploy_type => PREVIEW,
-    :target_type => "windows",
-    :extension_version => EXTENSION_VERSION,
-    :chef_deploy_namespace => "Chef.Bootstrap.WindowsAzure.Test",
-    :operation => "new",
-    :internal_or_public => CONFIRM_INTERNAL,
-    :confirmation_required => "true")
+    deploy_type: PREVIEW,
+    target_type: "windows",
+    extension_version: EXTENSION_VERSION,
+    chef_deploy_namespace: "Chef.Bootstrap.WindowsAzure.Test",
+    operation: "new",
+    internal_or_public: CONFIRM_INTERNAL,
+    confirmation_required: "true"
+    )
 
-  puts "**Publish called with args:\n#{args}\n\n"
+  Rake::Task["build"].invoke(args[:target_type], args[:extension_version], args[:confirmation_required])
 
-  assert_publish_params(args.deploy_type, args.internal_or_public, args.operation)
+  puts "Publish called with args:
+  deploy_type: #{args.deploy_type}
+  target_type: #{args.target_type}
+  extension_version: #{args.extension_version}
+  chef_deploy_namespace: #{args.chef_deploy_namespace}
+  operation: #{args.operation}
+  internal_or_public: #{args.internal_or_public}
+  confirmation_required: #{args.confirmation_required}"
+
+  assert_deploy_type_params(args.deploy_type)
+  assert_operation_params(args.operation)
+  assert_internal_or_public_params(args.internal_or_public)
 
   subscription_id, subscription_name = load_publish_settings
+  set_env_vars(subscription_id, args.deploy_type)
+  assert_env_vars
 
-  set_env_vars(args.deploy_type, subscription_id)
-  assert_environment_vars
+  publish_uri = publish_uri(args.deploy_type, subscription_id, args.operation)
 
-  publish_uri = get_publish_uri(args.deploy_type, subscription_id, args.operation)
+  definition_xml = definition_xml(args.deploy_type, args.extension_version, args.target_type, args.chef_deploy_namespace)
 
-  definitionXml = get_definition_xml(args)
+  puts <<~CONFIRMATION
 
-    puts <<-CONFIRMATION
-
-*****************************************
-This task creates a chef extension package and publishes to Azure #{args.deploy_type}.
-  Details:
-  -------
-    Publish To:  ** #{args.deploy_type.gsub(/deploy_to_/, "")} **
+    *****************************************
+    This task creates a chef extension package and publishes to Azure #{args.deploy_type}.
+    Details:
+    -------
+    Publish To:  ** #{args.deploy_type.gsub(/deploy_to_/, '')} **
     Subscription Name:  #{subscription_name}
     Extension Version:  #{args.extension_version}
     Publish Uri:  #{publish_uri}
-    Build branch:  #{%x{git rev-parse --abbrev-ref HEAD}}
-    Type:  #{is_internal?(args) ? "Internal build" : "Public release"}
-****************************************
-CONFIRMATION
+    Build branch:  #{`git rev-parse --abbrev-ref HEAD`}
+    Type:  #{args.internal_or_public == CONFIRM_INTERNAL ? 'Internal build' : 'Public release'}
+    ****************************************
+  CONFIRMATION
+
   # Get user confirmation, since we are publishing a new build to Azure.
-  if args.confirmation_required == "true"
-    confirm!("publish")
-  end
+  confirm!("Publish") if args.confirmation_required == "true"
 
   puts "Continuing with publish request..."
 
   date_tag = Date.today.strftime("%Y%m%d")
-  manifestFile = File.new("#{MANIFEST_NAME}_#{args.target_type}_#{date_tag}", "w")
-  definitionXmlFile = manifestFile.path
-  puts "Writing publishDefinitionXml to #{definitionXmlFile}..."
-  puts "[[\n#{definitionXml}\n]]"
-  manifestFile.write(definitionXml)
-  manifestFile.close
-
-  begin
-    cli_cmd = Mixlib::ShellOut.new("#{ENV['azure_extension_cli']} new-extension-version --manifest #{definitionXmlFile}")
-    result = cli_cmd.run_command
-    result.error!
-    puts "The extension has been successfully published internally."
-  rescue Mixlib::ShellOut::ShellCommandFailed => e
-    puts "Failure while running `#{ENV['azure_extension_cli']} new-extension-version`: #{e}"
-    exit
-  end
+  manifest_file = File.new(xml_file_name(args.extension_version, args.target_type, date_tag), "w")
+  xml_file_path = manifest_file.path
+  puts "Writing publishDefinitionXml to #{xml_file_path}..."
+  puts "[[\n#{definition_xml}\n]]"
+  manifest_file.write(definition_xml)
+  manifest_file.close
+  new_extension_version_args = [xml_file_path]
+  run_new_extension_version(*new_extension_version_args)
 end
 
-desc "Promotes the extension in single region for GOV Cloud"
-task :promote_single_region, [:deploy_type, :target_type, :extension_version, :build_date_yyyymmdd, :region, :confirmation_required] do |t, args|
+desc 'Promotes the extension in multiple regions for GOV Cloud. Provide semi-colon separated list of regions. Ex: "West Central US; North Central US; West US"'
+task :promote, [:deploy_type, :target_type, :extension_version, :build_date_yyyymmdd, :regions, :confirmation_required] do |_t, args|
   args.with_defaults(
-    :deploy_type => PRODUCTION,
-    :target_type => "windows",
-    :extension_version => EXTENSION_VERSION,
-    :build_date_yyyymmdd => nil,
-    :region => "USGov Virginia",
-    :confirmation_required => "true")
+    deploy_type: PRODUCTION,
+    target_type: "windows",
+    extension_version: EXTENSION_VERSION,
+    build_date_yyyymmdd: nil,
+    regions: "USGov Virginia; USGov Iowa",
+    confirmation_required: "true"
+    )
 
-  puts "**Promote_single_region called with args:\n#{args}\n\n"
+  puts "Promote called with args:
+  deploy_type: #{args.deploy_type}
+  target_type: #{args.target_type}
+  extension_version: #{args.extension_version}
+  build_date_yyyymmdd: #{args.build_date_yyyymmdd}
+  regions: #{args.regions}
+  confirmation_required: #{args.confirmation_required}"
 
-  assert_publish_env_vars
+  regions = args.regions.split(";").strip
+
+  assert_deploy_type_params(args.deploy_type)
+  assert_gov_regions(regions) if args.deploy_type == GOV
+  assert_build_date(args.build_date_yyyymmdd)
   subscription_id, subscription_name = load_publish_settings
-  set_env_vars(args.deploy_type, subscription_id)
-  # assert build date since we form the build tag
-  error_and_exit! "Please specify the :build_date_yyyymmdd param used to identify the published build" if args.build_date_yyyymmdd.nil?
-  assert_environment_vars
-  assert_gov_regions(args) if args.deploy_type == GOV
-  definitionXmlFile = get_definition_xml_name(args)
+  set_env_vars(subscription_id, args.deploy_type)
+  assert_env_vars
 
-  puts <<-CONFIRMATION
+  manifest_file = xml_file_name(args.extension_version, args.target_type, args.build_date_yyyymmdd)
 
-*****************************************
-This task promotes the chef extension package to '#{args.region}' region.
-  Details:
-  -------
-    Publish To:  ** #{args.deploy_type.gsub(/deploy_to_/, "")} **
+  puts <<~CONFIRMATION
+
+    *****************************************
+    This task promotes the chef extension package to "#{regions.join('", "')}" regions.
+    Details:
+    -------
+    Publish To:  ** #{args.deploy_type.gsub(/deploy_to_/, '')} **
     Subscription Name:  #{subscription_name}
     Extension Version:  #{args.extension_version}
     Build Date: #{args.build_date_yyyymmdd}
-    Region:  #{args.region}
-****************************************
-CONFIRMATION
+    #{regions.map.with_index { |reg, i| "Region #{i + 1}: #{reg}" }.join("\n    ")}
+    ****************************************
+  CONFIRMATION
+
   # Get user confirmation, since we are publishing a new build to Azure.
-  if args.confirmation_required == "true"
-    confirm!("update")
-  end
+  confirm!("Promote") if args.confirmation_required == "true"
 
-  puts "Promoting the extension to #{args.region}..."
-
-  begin
-    cli_cmd = Mixlib::ShellOut.new("#{ENV['azure_extension_cli']} promote-single-region --manifest #{definitionXmlFile} --region-1 '#{args.region}'")
-    result = cli_cmd.run_command
-    result.error!
-    puts "The extension has been successfully published in #{args.region}."
-  rescue Mixlib::ShellOut::ShellCommandFailed => e
-    puts "Failure while running `#{ENV['azure_extension_cli']} promote-single-region`: #{e}"
-    exit
-  end
-end
-
-desc "Promotes the extension in two regions for GOV Cloud"
-task :promote_two_regions, [:deploy_type, :target_type, :extension_version, :build_date_yyyymmdd, :region1, :region2, :confirmation_required] do |t, args|
-  args.with_defaults(
-    :deploy_type => PRODUCTION,
-    :target_type => "windows",
-    :extension_version => EXTENSION_VERSION,
-    :build_date_yyyymmdd => nil,
-    :region1 => "USGov Virginia",
-    :region2 => "USGov Iowa",
-    :confirmation_required => "true")
-
-  puts "**Promote_two_regions called with args:\n#{args}\n\n"
-
-  assert_publish_env_vars
-  subscription_id, subscription_name = load_publish_settings
-  set_env_vars(args.deploy_type, subscription_id)
-  # assert build date since we form the build tag
-  error_and_exit! "Please specify the :build_date_yyyymmdd param used to identify the published build" if args.build_date_yyyymmdd.nil?
-  assert_environment_vars
-  assert_gov_regions(args) if args.deploy_type == GOV
-  definitionXmlFile = get_definition_xml_name(args)
-
-  puts <<-CONFIRMATION
-
-*****************************************
-This task promotes the chef extension package to '#{args.region1}' and '#{args.region2}' regions.
-  Details:
-  -------
-    Publish To:  ** #{args.deploy_type.gsub(/deploy_to_/, "")} **
-    Subscription Name:  #{subscription_name}
-    Extension Version:  #{args.extension_version}
-    Build Date: #{args.build_date_yyyymmdd}
-    Region1:  #{args.region1}
-    Region2:  #{args.region2}
-****************************************
-CONFIRMATION
-  # Get user confirmation, since we are publishing a new build to Azure.
-  if args.confirmation_required == "true"
-    confirm!("update")
-  end
-
-  puts "Promoting the extension to #{args.region1} and #{args.region2}..."
-
-  begin
-    cli_cmd = Mixlib::ShellOut.new("#{ENV['azure_extension_cli']} promote-two-regions --manifest #{definitionXmlFile} --region-1 '#{args.region1}' --region-2 '#{args.region2}'")
-    result = cli_cmd.run_command
-    result.error!
-    puts "The extension has been successfully published in #{args.region1} and #{args.region2}."
-  rescue Mixlib::ShellOut::ShellCommandFailed => e
-    puts "Failure while running `#{ENV['azure_extension_cli']} promote-two-regions`: #{e}"
-    exit
-  end
+  puts "Promoting the extension to \"#{regions.join('", "')}\" regions..."
+  promote_args = [manifest_file, regions]
+  run_promote(*promote_args)
 end
 
 desc "Unpublishes the azure chef extension package which was publised in some Regions."
-task :unpublish_version, [:deploy_type, :target_type, :full_extension_version, :confirmation_required] do |t, args|
-
+task :unpublish_version, [:deploy_type, :target_type, :extension_version, :confirmation_required] do |_t, args|
   args.with_defaults(
-    :deploy_type => DELETE_FROM_PRODUCTION,
-    :target_type => "windows",
-    :full_extension_version => nil,
-    :confirmation_required => "true")
+    deploy_type: DELETE_FROM_PRODUCTION,
+    target_type: "windows",
+    extension_version: nil,
+    confirmation_required: "true"
+    )
 
-  puts "**unpublish_version called with args:\n#{args}\n\n"
+  puts "Unpublish Version called with args:
+  deploy_type: #{args.deploy_type}
+  target_type: #{args.target_type}
+  extension_version: #{args.extension_version}
+  confirmation_required: #{args.confirmation_required}"
 
-  assert_publish_env_vars
-  error_and_exit! "This task is supported on for deploy_types: \"#{DELETE_FROM_GOV}\" and \"#{DELETE_FROM_PRODUCTION}\"" unless (args.deploy_type == DELETE_FROM_GOV || args.deploy_type == DELETE_FROM_PRODUCTION)
+  assert_delete_type_params(args.deploy_type)
   subscription_id, subscription_name = load_publish_settings
-  set_env_vars(args.deploy_type, subscription_id)
-  assert_environment_vars
+  set_env_vars(subscription_id, args.deploy_type)
+  assert_env_vars
 
   publish_options = JSON.parse(File.read("Publish.json"))
-  extensionName = publish_options[args.target_type]["definitionParams"]["extensionName"]
+  extension_name = publish_options[args.target_type]["definitionParams"]["extensionName"]
 
   # Get user confirmation, since we are deleting from Azure.
-  puts <<-CONFIRMATION
+  puts <<~CONFIRMATION
 
-*****************************************
-This task unpublishes a published chef extension package from Azure #{args.deploy_type}.
-  Details:
-  -------
-    Delete from:  ** #{args.deploy_type.gsub(/delete_from_/, "")} **
+    *****************************************
+    This task unpublishes a published chef extension package from Azure #{args.deploy_type}.
+    Details:
+    -------
+    Unpublish from:  ** #{args.deploy_type.gsub(/delete_from_/, '')} **
     Subscription Name:  #{subscription_name}
     Publisher Name:     #{ENV['EXTENSION_NAMESPACE']}
-    Extension Name:     #{extensionName}
-****************************************
-CONFIRMATION
+    Extension Name:     #{extension_name}
+    ****************************************
+  CONFIRMATION
 
-  if args.confirmation_required == "true"
-    confirm!("delete")
-  end
+  confirm!("Unpublish") if args.confirmation_required == "true"
 
   puts "Continuing with unpublish request..."
-  begin
-    cli_cmd = Mixlib::ShellOut.new("#{ENV['azure_extension_cli']} unpublish-version --name #{extensionName} --version #{args.full_extension_version}")
-    result = cli_cmd.run_command
-    result.error!
-    puts "The extension has been successfully unpublished."
-  rescue Mixlib::ShellOut::ShellCommandFailed => e
-    puts "Failure while running `#{ENV['azure_extension_cli']} unpublish-version`: #{e}"
-    exit
-  end
+  unpublish_version_args = [ENV["EXTENSION_NAMESPACE"], extension_name, args.extension_version]
+  run_unpublish_version(*unpublish_version_args)
 end
 
 desc "Deletes the azure chef extension package which was publised as internal Ex: publish[deploy_type, platform, extension_version], default is build[preview,windows]."
-task :delete, [:deploy_type, :target_type, :chef_deploy_namespace, :full_extension_version, :confirmation_required] do |t, args|
-
+task :delete, [:deploy_type, :target_type, :chef_deploy_namespace, :extension_version, :confirmation_required] do |_t, args|
   args.with_defaults(
-    :deploy_type => DELETE_FROM_PREVIEW,
-    :target_type => "windows",
-    :chef_deploy_namespace => nil,
-    :full_extension_version => nil,
-    :confirmation_required => "true")
+    deploy_type: DELETE_FROM_PREVIEW,
+    target_type: "windows",
+    chef_deploy_namespace: nil,
+    extension_version: nil,
+    confirmation_required: "true"
+    )
 
-  puts "**Delete called with args:\n#{args}\n\n"
+  puts "Unpublish Version called with args:
+  deploy_type: #{args.deploy_type}
+  target_type: #{args.target_type}
+  chef_deploy_namespace: #{args.chef_deploy_namespace}
+  extension_version: #{args.extension_version}
+  confirmation_required: #{args.confirmation_required}"
 
-  assert_delete_params(args.deploy_type, args.chef_deploy_namespace, args.full_extension_version)
+  assert_delete_type_params(args.deploy_type)
+  assert_chef_deploy_namespace_params(args.chef_deploy_namespace)
+  assert_extension_version(args.extension_version)
 
   subscription_id, subscription_name = load_publish_settings
+  set_env_vars(subscription_id, args.deploy_type)
+  assert_env_vars
 
   publish_options = JSON.parse(File.read("Publish.json"))
-  extensionName = publish_options[args.target_type]["definitionParams"]["extensionName"]
+  extension_name = publish_options[args.target_type]["definitionParams"]["extensionName"]
 
   # Get user confirmation, since we are deleting from Azure.
-  puts <<-CONFIRMATION
+  puts <<~CONFIRMATION
 
-*****************************************
-This task deletes a published chef extension package from Azure #{args.deploy_type}.
-  Details:
-  -------
-    Delete from:  ** #{args.deploy_type.gsub(/delete_from_/, "")} **
+    *****************************************
+    This task unpublishes a published chef extension package from Azure #{args.deploy_type}.
+    Details:
+    -------
+    Delete from:     ** #{args.deploy_type.gsub(/delete_from_/, '')} **
     Subscription Name:  #{subscription_name}
-    Publisher Name:     #{args.chef_deploy_namespace}
-    Extension Name:     #{extensionName}
-****************************************
-CONFIRMATION
+    Publisher Name:     #{ENV['EXTENSION_NAMESPACE']}
+    Extension Name:     #{extension_name}
+    ****************************************
+  CONFIRMATION
 
-  if args.confirmation_required == "true"
-    confirm!("delete")
-  end
+  confirm!("Delete") if args.confirmation_required == "true"
 
   puts "Continuing with delete request..."
-
-  set_env_vars(args.deploy_type, subscription_id)
-  assert_environment_vars
-  begin
-    cli_cmd = Mixlib::ShellOut.new("#{ENV['azure_extension_cli']} delete-version --name #{extensionName} --version #{args.full_extension_version}")
-    result = cli_cmd.run_command
-    result.error!
-    puts "The extension has been successfully deleted."
-  rescue Mixlib::ShellOut::ShellCommandFailed => e
-    puts "Failure while running `#{ENV['azure_extension_cli']} delete-version`: #{e}"
-    exit
-  end
+  delete_version_args = [ENV["EXTENSION_NAMESPACE"], extension_name, args.extension_version]
+  run_delete_version(*delete_version_args)
 end
 
-desc "Updates the azure chef extension package metadata which was publised Ex: update[\"definitionxml.xml\"]."
-task :update, [:deploy_type, :target_type, :extension_version, :build_date_yyyymmdd, :chef_deploy_namespace, :internal_or_public, :confirmation_required] do |t, args|
-
+desc 'Updates the azure chef extension package metadata which was publised Ex: update["definitionxml.xml"].'
+task :update, [:deploy_type, :target_type, :extension_version, :build_date_yyyymmdd, :chef_deploy_namespace, :internal_or_public, :confirmation_required] do |_t, args|
   args.with_defaults(
-    :deploy_type => PREVIEW,
-    :target_type => "windows",
-    :extension_version => EXTENSION_VERSION,
-    :build_date_yyyymmdd => nil,
-    :chef_deploy_namespace => "Chef.Bootstrap.WindowsAzure.Test",
-    :internal_or_public => CONFIRM_INTERNAL,
-    :confirmation_required => "true")
+    deploy_type: PREVIEW,
+    target_type: "windows",
+    extension_version: EXTENSION_VERSION,
+    build_date_yyyymmdd: nil,
+    chef_deploy_namespace: "Chef.Bootstrap.WindowsAzure.Test",
+    internal_or_public: CONFIRM_INTERNAL,
+    confirmation_required: "true"
+    )
 
-  puts "**Update called with args:\n#{args}\n\n"
+  puts "Update Version called with args:
+  deploy_type: #{args.deploy_type}
+  target_type: #{args.target_type}
+  extension_version: #{args.extension_version}
+  build_date_yyyymmdd: #{args.build_date_yyyymmdd}
+  chef_deploy_namespace: #{args.chef_deploy_namespace}
+  internal_or_public: #{args.internal_or_public}
+  confirmation_required: #{args.confirmation_required}"
 
   assert_deploy_params(args.deploy_type, args.internal_or_public)
+  assert_build_date(build_date_yyyymmdd)
 
-  # assert build date since we form the build tag
-  error_and_exit! "Please specify the :build_date_yyyymmdd param used to identify the published build" if args.build_date_yyyymmdd.nil?
-
-  definitionXmlFile = get_definition_xml_name(args)
-  update_definition_xml(definitionXmlFile, args) # Updates IsInternal as False for public release and True for internal release
+  manifest_file = xml_file_name(args.extension_version, args.target_type, args.build_date_yyyymmdd)
+  update_definition_xml(manifest_file, args) # Updates IsInternal as False for public release and True for internal release
 
   subscription_id, subscription_name = load_publish_settings
+  set_env_vars(subscription_id, args.deploy_type)
+  assert_env_vars
 
-  publish_uri = get_publish_uri(args.deploy_type, subscription_id, "update")
+  publish_uri = publish_uri(args.deploy_type, subscription_id, "update")
 
-  puts <<-CONFIRMATION
+  puts <<~CONFIRMATION
 
-*****************************************
-This task updates the chef extension package which is already published to Azure #{args.deploy_type}.
-  Details:
-  -------
-    Publish To:  ** #{args.deploy_type.gsub(/deploy_to_/, "")} **
+    *****************************************
+    This task updates the chef extension package which is already published to Azure #{args.deploy_type}.
+    Details:
+    -------
+    Publish To:  ** #{args.deploy_type.gsub(/deploy_to_/, '')} **
     Subscription Name:  #{subscription_name}
     Extension Version:  #{args.extension_version}
     Build Date: #{args.build_date_yyyymmdd}
     Publish Uri:  #{publish_uri}
-    Type:  #{is_internal?(args) ? "Internal build" : "Public release"}
-****************************************
-CONFIRMATION
+    Type:  #{is_internal?(args) ? 'Internal build' : 'Public release'}
+    ****************************************
+  CONFIRMATION
+
   # Get user confirmation, since we are publishing a new build to Azure.
-  if args.confirmation_required == "true"
-    confirm!("update")
-  end
+  confirm!("Update") if args.confirmation_required == "true"
 
   puts "Continuing with udpate request..."
 
-  set_env_vars(args.deploy_type, subscription_id)
-  assert_environment_vars
-
-  begin
-    cli_cmd = Mixlib::ShellOut.new("#{ENV['azure_extension_cli']} promote-all-regions --manifest #{definitionXmlFile}")
-    result = cli_cmd.run_command
-    result.error!
-    puts "The extension has been successfully published externally."
-  rescue Mixlib::ShellOut::ShellCommandFailed => e
-    puts "Failure while running `#{ENV['azure_extension_cli']} promote-all-regions`: #{e}"
-    exit
-  end
+  promote_all_regions_args = [manifest_file]
+  run_promote_all_regions(*promote_all_regions_args)
 end
 
 task :init_pester do
   puts "Initializing Pester to run powershell unit tests..."
-  puts %x{powershell -Command if (Test-Path "#{PESTER_SANDBOX}") {Remove-Item -Recurse -Force #{PESTER_SANDBOX}"}}
-  puts %x{powershell "mkdir #{PESTER_SANDBOX}; cd #{PESTER_SANDBOX}; git clone --branch #{PESTER_VER_TAG} \'#{PESTER_GIT_URL}\'"; cd ..}
+  puts `powershell -Command if (Test-Path "#{PESTER_SANDBOX}") {Remove-Item -Recurse -Force #{PESTER_SANDBOX}"}`
+  puts `powershell "mkdir #{PESTER_SANDBOX}; cd #{PESTER_SANDBOX}; git clone --branch #{PESTER_VER_TAG} \'#{PESTER_GIT_URL}\'"; cd ..`
 end
 
 # Its runs pester unit tests
 # have a winspec task that can be used to trigger tests in jenkins
-desc "Runs pester unit tests ex: rake spec[\"spec\\ps_specs\\sample.Tests.ps1\"]"
-task :winspec, [:spec_path] => [:init_pester] do |t, args|
+desc 'Runs pester unit tests ex: rake spec["spec\\ps_specs\\sample.Tests.ps1"]'
+task :winspec, [:spec_path] => [:init_pester] do |_t, args|
   puts "\nRunning unit tests for powershell scripts..."
   # Default: runs all tests under spec dir,
   # user can specify individual test file
   # Ex: rake spec["spec\ps_specs\sample.Tests.ps1"]
-  args.with_defaults(:spec_path => "spec/ps_specs")
+  args.with_defaults(spec_path: "spec/ps_specs")
 
   # run pester tests
-  puts %x{powershell -ExecutionPolicy Unrestricted Import-Module #{PESTER_SANDBOX}/Pester/Pester.psm1; Invoke-Pester -relative_path #{args.spec_path}}
+  puts `powershell -ExecutionPolicy Unrestricted Import-Module #{PESTER_SANDBOX}/Pester/Pester.psm1; Invoke-Pester -relative_path #{args.spec_path}`
 end
 
 # rspec
 begin
-  require 'rspec/core/rake_task'
+  require "rspec/core/rake_task"
   desc "Run all specs in spec directory"
   RSpec::Core::RakeTask.new(:spec) do |t|
     t.rspec_opts = ["--format", "documentation"]
-    t.pattern = 'spec/**/**/*_spec.rb'
+    t.pattern = "spec/**/**/*_spec.rb"
   end
 rescue LoadError
   STDERR.puts "\n*** RSpec not available. (sudo) gem install rspec to run unit tests. ***\n\n"
